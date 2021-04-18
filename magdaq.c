@@ -2,7 +2,12 @@
 #define BAUD	9600
 
 #include <avr/io.h>
+#include <avr/interrupt.h>
 #include <util/setbaud.h>
+
+// Global vars
+
+volatile uint8_t int_flag = 0;
 
 // UART functions
 
@@ -26,6 +31,20 @@ void uart_send_byte(uint8_t out) {
     UDR = out;
 }
 
+// Timer 0 functions
+// This is the 8 bit timer connected to the 10Hz output of the TCXO
+void init_timer0() {
+    // Set clock source to T0 pin
+    TCCR0B |= (1<<CS01)|(1<<CS02);
+    // Fire once per second
+    OCR0A = 10;
+    // Clear on compare
+    TCCR0A |= (1<<WGM01);
+    // Enable interrupts
+    TIMSK |= (1<<OCIE0A);
+    TIFR |= (1<<OCF0A);
+}
+
 void send_datapoint() {
     // Just say "DEAD BEEF\n" for now
     uart_send_byte(0x44);
@@ -44,11 +63,26 @@ void send_datapoint() {
     uart_send_byte(0x0D);
 }
 
+// Interrupts
+
+ISR(TIMER0_COMPA_vect) {
+    int_flag = 1;
+}
+
 // Main
 
 int main() {
+    cli();
     init_uart();
-    send_datapoint();
+    init_timer0();
+    sei();
+    while(1) {
+       if(int_flag != 0) {
+           send_datapoint();
+           int_flag = 0;
+       }
+    }
+
     return 0; 
 }
 
