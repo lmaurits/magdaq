@@ -8,7 +8,9 @@
 // Global vars
 
 volatile uint8_t int_flag = 0;
-volatile uint16_t capture = 0;
+volatile uint8_t overflows = 0;
+volatile uint8_t capture_overflows = 0;
+volatile uint16_t capture_tcnt1 = 0;
 
 // UART functions
 
@@ -50,29 +52,40 @@ void init_timers() {
     OCR0A = 10;
     // Clear on compare
     TCCR0A |= (1<<WGM01);
-    // Enable interrupts
-    TIMSK |= (1<<OCIE0A);
 
     /* Timer 1 */
     // Set clock source to T1 pin
     TCCR1B |= (1<<CS11)|(1<<CS12);
+
+    // Enable interrupts
+    TIMSK |= (1<<OCIE0A)|(1<<TOIE1);
 }
 
 void send_datapoint() {
     
-    uart_send_byte(capture & 0xFF);
-    uart_send_byte((capture >> 8) & 0xFF);
+    uart_send_byte(capture_tcnt1 & 0xFF);
+    uart_send_byte((capture_tcnt1 >> 8) & 0xFF);
+    uart_send_byte(capture_overflows);
     
-    uart_send_byte(0x0A);
-    uart_send_byte(0x0D);
+    uart_send_byte(0xAA);
+    uart_send_byte(0xBB);
+    uart_send_byte(0xCC);
+    uart_send_byte(0xDD);
+    uart_send_byte(0xEE);
 }
 
 // Interrupts
 
 ISR(TIMER0_COMPA_vect) {
-    capture = TCNT1;
+    capture_tcnt1 = TCNT1;
     TCNT1 = 0;
+    capture_overflows = overflows;
+    overflows = 0;
     int_flag = 1;
+}
+
+ISR(TIMER1_OVF_vect) {
+    overflows++;
 }
 
 // Main
