@@ -8,6 +8,7 @@
 // Global vars
 
 volatile uint8_t int_flag = 0;
+volatile uint16_t capture = 0;
 
 // UART functions
 
@@ -31,9 +32,18 @@ void uart_send_byte(uint8_t out) {
     UDR = out;
 }
 
-// Timer 0 functions
-// This is the 8 bit timer connected to the 10Hz output of the TCXO
-void init_timer0() {
+// Multiplexer function
+void init_multiplexer() {
+    // Set PB0 and PB1 as outputs, and set them low
+    DDRB |= 3;
+    PORTB = 0;
+}
+
+// Timer functions
+// Timer 0 is the 8 bit timer connected to the 10Hz output of the TCXO
+// Timer 1 is the 16 bit timer connected to the magnetometer(s)
+void init_timers() {
+    /* Timer 0 */
     // Set clock source to T0 pin
     TCCR0B |= (1<<CS01)|(1<<CS02);
     // Fire once per second
@@ -43,21 +53,16 @@ void init_timer0() {
     // Enable interrupts
     TIMSK |= (1<<OCIE0A);
     TIFR |= (1<<OCF0A);
+
+    /* Timer 1 */
+    // Set clock source to T1 pin
+    TCCR1B |= (1<<CS11)|(1<<CS12);
 }
 
 void send_datapoint() {
-    // Just say "DEAD BEEF\n" for now
-    uart_send_byte(0x44);
-    uart_send_byte(0x45);
-    uart_send_byte(0x41);
-    uart_send_byte(0x44);
-
-    uart_send_byte(0x20);
     
-    uart_send_byte(0x42);
-    uart_send_byte(0x45);
-    uart_send_byte(0x45);
-    uart_send_byte(0x46);
+    uart_send_byte(capture & 0xFF);
+    uart_send_byte((capture >> 8) & 0xFF);
     
     uart_send_byte(0x0A);
     uart_send_byte(0x0D);
@@ -66,6 +71,8 @@ void send_datapoint() {
 // Interrupts
 
 ISR(TIMER0_COMPA_vect) {
+    capture = TCNT1;
+    TCNT1 = 0;
     int_flag = 1;
 }
 
@@ -74,7 +81,8 @@ ISR(TIMER0_COMPA_vect) {
 int main() {
     cli();
     init_uart();
-    init_timer0();
+    init_multiplexer();
+    init_timers();
     sei();
     while(1) {
        if(int_flag != 0) {
