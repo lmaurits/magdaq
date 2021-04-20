@@ -52,7 +52,6 @@ void init_timers() {
     TCCR0A |= (1<<WGM01);
     // Enable interrupts
     TIMSK |= (1<<OCIE0A);
-    TIFR |= (1<<OCF0A);
 
     /* Timer 1 */
     // Set clock source to T1 pin
